@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapas do Auditório — Encontro Saberes 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#10121a;--surface:#161921;--surface2:#1c2030;--border:#252c3e;--text:#dde2f0;--text2:#b5b9c2;--muted:#6f7892;--accent:#5b7cf7}
+body{min-height:100vh;background:radial-gradient(circle at 50% -10%,rgba(91,124,247,.14),transparent 34rem),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;display:flex;flex-direction:column}
+header{border-bottom:1px solid var(--border);background:rgba(22,25,33,.92);backdrop-filter:blur(10px)}
+.header-inner{width:min(100% - 32px,1040px);margin:auto;padding:22px 0}
+.eyebrow{font:500 10px/1.2 'IBM Plex Mono',monospace;color:var(--accent);letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px}
+h1{font-size:clamp(20px,4vw,30px);font-weight:600;letter-spacing:-.02em}
+.subtitle{color:var(--text2);font-size:13px;margin-top:7px}
+main{width:min(100% - 32px,1040px);margin:auto;padding:28px 0 40px;flex:1}
+.intro{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:18px}
+.intro h2{font-size:15px;font-weight:500} .intro span{color:var(--muted);font:400 11px/1.4 'IBM Plex Mono',monospace}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.date-card{background:linear-gradient(145deg,rgba(28,32,48,.95),rgba(22,25,33,.96));border:1px solid var(--border);border-radius:14px;padding:18px;display:grid;grid-template-columns:68px minmax(0,1fr);gap:16px;box-shadow:0 12px 36px rgba(0,0,0,.18)}
+.date-badge{width:68px;height:76px;border:1px solid rgba(91,124,247,.38);background:rgba(91,124,247,.08);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.date-badge .day{font:600 28px/1 'IBM Plex Mono',monospace} .date-badge .month{color:var(--accent);font:500 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;margin-top:7px}
+.date-content h2{font-size:15px;font-weight:600} .date-content>p{color:var(--muted);font-size:11px;line-height:1.45;margin:4px 0 13px}
+.periods{display:grid;gap:8px}
+.period-btn{color:var(--text);text-decoration:none;background:var(--surface);border:1px solid var(--border);border-radius:9px;min-height:54px;padding:9px 11px;display:grid;grid-template-columns:28px 1fr 18px;gap:9px;align-items:center;transition:transform .14s ease,border-color .14s ease,background .14s ease}
+.period-btn:hover{transform:translateY(-1px);border-color:rgba(91,124,247,.8);background:#1a1e2a} .period-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.period-icon{font-size:17px} .period-btn strong{display:block;font-size:12px;font-weight:500} .period-btn small{display:block;color:var(--muted);font-size:9px;margin-top:2px}
+.arrow{color:var(--muted);font-size:17px;transition:transform .14s ease,color .14s ease} .period-btn:hover .arrow{transform:translateX(2px);color:var(--accent)}
+.info{margin-top:18px;padding:12px 14px;background:rgba(91,124,247,.06);border:1px solid rgba(91,124,247,.2);border-radius:10px;color:var(--text2);font-size:11px;line-height:1.55}
+footer{border-top:1px solid var(--border);background:var(--surface);padding:22px 16px;text-align:center} .watermark{color:var(--muted);font:400 9px/1.7 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.intro{align-items:flex-start;flex-direction:column;gap:4px}}
+@media(max-width:420px){.date-card{grid-template-columns:52px minmax(0,1fr);gap:12px;padding:14px}.date-badge{width:52px;height:64px}.date-badge .day{font-size:23px}}
+</style>
+</head>
+<body>
+<header><div class="header-inner"><div class="eyebrow">Encontro Saberes 2026</div><h1>Mapas do Auditório</h1><p class="subtitle">Selecione a data e o período para acessar a distribuição de assentos.</p></div></header>
+<main>
+  <div class="intro"><h2>Programação disponível</h2><span>08 a 11 de setembro de 2026</span></div>
+  <div class="grid"><article class="date-card">
+      <div class="date-badge"><span class="day">08</span><span class="month">SET</span></div>
+      <div class="date-content">
+        <h2>08/09/2026</h2>
+        <p>Selecione o período para consultar o mapa de assentos.</p>
+        <div class="periods"><a class="period-btn" href="mapa-auditorio-0809%20-%20Manh%C3%A3.html">
+              <span class="period-icon">☀️</span>
+              <span><strong>Manhã</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a><a class="period-btn" href="mapa-auditorio-0809%20-%20Tarde.html">
+              <span class="period-icon">🌤️</span>
+              <span><strong>Tarde</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a></div>
+      </div>
+    </article><article class="date-card">
+      <div class="date-badge"><span class="day">09</span><span class="month">SET</span></div>
+      <div class="date-content">
+        <h2>09/09/2026</h2>
+        <p>Selecione o período para consultar o mapa de assentos.</p>
+        <div class="periods"><a class="period-btn" href="mapa-auditorio-0909%20-%20Manh%C3%A3.html">
+              <span class="period-icon">☀️</span>
+              <span><strong>Manhã</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a><a class="period-btn" href="mapa-auditorio-0909%20-%20Tarde.html">
+              <span class="period-icon">🌤️</span>
+              <span><strong>Tarde</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a></div>
+      </div>
+    </article><article class="date-card">
+      <div class="date-badge"><span class="day">10</span><span class="month">SET</span></div>
+      <div class="date-content">
+        <h2>10/09/2026</h2>
+        <p>Selecione o período para consultar o mapa de assentos.</p>
+        <div class="periods"><a class="period-btn" href="mapa-auditorio-1009%20-%20Manh%C3%A3.html">
+              <span class="period-icon">☀️</span>
+              <span><strong>Manhã</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a><a class="period-btn" href="mapa-auditorio-1009%20-%20Tarde.html">
+              <span class="period-icon">🌤️</span>
+              <span><strong>Tarde</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a></div>
+      </div>
+    </article><article class="date-card">
+      <div class="date-badge"><span class="day">11</span><span class="month">SET</span></div>
+      <div class="date-content">
+        <h2>11/09/2026</h2>
+        <p>Selecione o período para consultar o mapa de assentos.</p>
+        <div class="periods"><a class="period-btn" href="mapa-auditorio-1109%20-%20Manh%C3%A3.html">
+              <span class="period-icon">☀️</span>
+              <span><strong>Manhã</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a><a class="period-btn" href="mapa-auditorio-1109%20-%20Tarde.html">
+              <span class="period-icon">🌤️</span>
+              <span><strong>Tarde</strong><small>Abrir mapa do auditório</small></span>
+              <span class="arrow">→</span>
+            </a></div>
+      </div>
+    </article></div>
+  <div class="info">Os arquivos dos mapas devem permanecer na mesma pasta deste <strong>index.html</strong> para que os links funcionem corretamente.</div>
+</main>
+<footer><div class="watermark">© 2026 Mateus C. Stauder (EFOPE) — Todos os direitos reservados.<br>Sistema de Gestão de Assentos</div></footer>
+</body>
+</html>
