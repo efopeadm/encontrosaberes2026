@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Mapa do Auditório — Encontro Saberes</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#10121a;--surf:#161921;--surf2:#1c2030;--brd:#252c3e;--txt:#dde2f0;--muted:#5a6480;--txt2:#b5b9c2;--acc:#5b7cf7}
+body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    display: flex; /* Adicionado */
+    flex-direction: column; /* Adicionado */
+    overflow-x: hidden;
+}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--brd);background:var(--surf);position:sticky;top:0;z-index:200}
+header h1{font-size:13px;font-weight:500;line-height:1.3}
+header span{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;white-space:nowrap;margin-left:8px}
+nav{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--brd);overflow-x:auto}
+.tab{padding:7px 14px;border-radius:7px 7px 0 0;font-size:12px;cursor:pointer;color:var(--muted);border:1px solid transparent;border-bottom:none;transition:all .14s;white-space:nowrap}
+.tab.on{background:var(--surf2);color:var(--txt);border-color:var(--brd)}
+section{display:none;padding:14px 16px}
+section.on{display:block}
+
+#mapwrap{overflow:auto;-webkit-overflow-scrolling:touch;background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:8px}
+#svgmap{display:block;min-width:700px;width:100%;height:auto}
+
+/* ── Tipos de cadeira ── */
+/* Ocupada por escola */
+.seat{cursor:pointer;transition:opacity .1s}
+.seat:hover{opacity:.75}
+.seat.dim{opacity:.06}
+/* Vazia — contorno sutil */
+.seat-empty{fill:none;stroke:rgba(255,255,255,0.13);stroke-width:0.55px;pointer-events:auto;cursor:default}
+/* Reservada — cinza escuro semitransparente */
+.seat-reserved{fill:rgba(120,130,160,0.22);stroke:rgba(180,190,220,0.28);stroke-width:0.55px;pointer-events:auto;cursor:default}
+
+.tip{position:fixed;background:#1a1e2e;border:1px solid var(--brd);border-radius:8px;padding:9px 13px;font-size:12px;pointer-events:none;z-index:999;max-width:240px;line-height:1.6;box-shadow:0 6px 28px rgba(0,0,0,.65);display:none}
+.tip b{font-size:13px;display:block;margin-bottom:2px}
+
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.stats{display:none}
+.st{background:var(--surf);border:1px solid var(--brd);border-radius:7px;padding:8px 12px;min-width:80px}
+.st label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;display:block}
+.st strong{font-size:17px;font-weight:600;font-family:'IBM Plex Mono',monospace;display:block;margin-top:1px}
+.hint{font-size:12px;color:var(--txt2);margin-bottom:8px}
+
+/* legenda de tipos */
+.map-legend-types{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--muted)}
+.map-legend-types span{display:flex;align-items:center;gap:5px}
+.sw{width:11px;height:11px;border-radius:2px;display:inline-block;flex-shrink:0}
+.sw-school{background:var(--acc)}
+.sw-reserved{background:rgba(120,130,160,0.4);border:1px solid rgba(180,190,220,0.4)}
+.sw-empty{background:none;border:1px solid rgba(255,255,255,0.25)}
+
+#legend{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:3px}
+.li{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:5px;cursor:pointer;transition:background .12s;font-size:11px}
+.li:hover{background:var(--surf2)}.li.dim{opacity:.18}
+.li-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.li-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li-sec{color:var(--muted);font-size:9px;flex-shrink:0}
+.li-n{background:var(--surf2);color:var(--muted);font-size:9px;font-family:'IBM Plex Mono',monospace;padding:1px 4px;border-radius:3px;flex-shrink:0}
+
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.sc{background:var(--surf);border:1px solid var(--brd);border-radius:9px;overflow:hidden}
+.sc-hd{padding:10px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--brd)}
+.sc-bar{width:4px;height:28px;border-radius:2px;flex-shrink:0}
+.sc-title{font-size:12px;font-weight:500}.sc-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.sr{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:11px;border-bottom:1px solid var(--brd)}
+.sr:last-child{border-bottom:none}
+.sr .d{width:8px;height:8px;border-radius:50%;flex-shrink:0}.sr .nm{flex:1}
+.sr .np{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+
+.search{padding:0 0 12px}
+.search input{width:100%;background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:7px 12px;color:var(--txt);font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none}
+.search input:focus{border-color:var(--acc)}.search input::placeholder{color:var(--muted)}
+#fl{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:4px}
+.fi{display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surf);border:1px solid var(--brd);border-radius:6px;cursor:pointer;transition:border-color .12s}
+.fi:hover{border-color:var(--acc)}
+.fi .d{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fi .nm{flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi .sec{font-size:9px;color:var(--muted)}.fi .np{font-size:9px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+
+/* Estilos do Rodapé / Marca D'água */
+footer {
+    padding: 24px 16px;
+    border-top: 1px solid var(--brd);
+    background: var(--surf);
+    text-align: center;
+    margin-top: auto; /* Empurra o rodapé para o fim da página */
+}
+
+.watermark {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    line-height: 1.6;
+}
+
+
+</style>
+</head>
+<body>
+<header>
+  <h1>Mapa do Auditório — Encontro Saberes</h1>
+</header>
+<nav>
+  <div class="tab on" onclick="showTab('mapa')">Mapa Visual</div>
+  <div class="tab" onclick="showTab('setores')">Por Setor</div>
+  <div class="tab" onclick="showTab('lista')">Lista</div>
+</nav>
+
+<section class="on" id="tab-mapa">
+  <div class="stats">
+    <div class="st"><label>Escolas</label><strong>73</strong></div>
+    <div class="st"><label>Pessoas</label><strong>737</strong></div>
+    <div class="st"><label>Poltronas</label><strong>1.102</strong></div>
+    <div class="st"><label>Reservadas</label><strong id="stat-res">—</strong></div>
+  </div>
+
+  <div class="map-legend-types">
+    <span><span class="sw sw-school"></span>Escolas</span>
+    <span><span class="sw sw-reserved"></span>Reservadas</span>
+    <span><span class="sw sw-empty"></span>Disponíveis</span>
+  </div>
+
+  <p class="hint">Toque numa cadeira para destacar a escola.</p>
+  <div id="mapwrap">
+    <svg id="svgmap" viewBox="0 0 960 1120" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div id="legend"></div>
+</section>
+<section id="tab-setores"><div class="sg" id="sg"></div></section>
+<section id="tab-lista">
+  <div class="search"><input id="search" type="text" placeholder="Buscar escola ou setor..." oninput="filtrar()"></div>
+  <div id="fl"></div>
+</section>
+<footer>
+    <div class="watermark">
+        © 2026 Mateus C. Stauder (EFOPE) — Todos os direitos reservados.
+        <br>Sistema de Gestão de Assentos v1.0
+    </div>
+</footer>
+<div class="tip" id="tip"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// DADOS
+// ─────────────────────────────────────────────────────────────
+const SCHOOLS = [
+
+  // ═══════════════════════════════════════════════
+  // C — TÉRREO
+  // Rui Barbosa primeiro
+  // 134 participantes + 35 Organização = 169
+  // ═══════════════════════════════════════════════
+
+  {id:1,name:"Rui Barbosa - EMEB",p:16,setor:"SCPT"},
+  {id:2,name:"Celso Augusto Daniel - EMEB",p:2,setor:"SCPT"},
+  {id:3,name:"Cora Coralina - EMEB",p:23,setor:"SCPT"},
+  {id:4,name:"Hygino Baptista de Lima - EMEB",p:17,setor:"SCPT"},
+  {id:5,name:"Olavo Bilac - EMEB",p:28,setor:"SCPT"},
+  {id:6,name:"Sandra Cruz Martins Freitas, Professora - EMEB",p:29,setor:"SCPT"},
+  {id:7,name:"Secretaria de Educação",p:19,setor:"SCPT"},
+
+  // Organização obrigatoriamente por último
+  {id:999,name:"Organização",p:35,setor:"SCPT"},
+
+
+  // ═══════════════════════════════════════════════
+  // A — TÉRREO
+  // 200 participantes + 14 autoridades
+  // ═══════════════════════════════════════════════
+
+  {id:8,name:"Geraldo de Melo Ferreira - EMEB",p:2,setor:"SAPT"},
+  {id:9,name:"Ivaneide Nogueira, Professora - EMEB",p:13,setor:"SAPT"},
+  {id:10,name:"Luiz Gushiken - EMEB",p:46,setor:"SAPT"},
+  {id:11,name:"Marcos José Ribeiro - EMEB",p:22,setor:"SAPT"},
+  {id:12,name:"Moysés Cheid - EMEB",p:20,setor:"SAPT"},
+  {id:13,name:"Regina Dulce Donadelli Pinto - EMEB",p:66,setor:"SAPT"},
+  {id:14,name:"Thales de Andrade - EMEB",p:31,setor:"SAPT"},
+
+
+  // ═══════════════════════════════════════════════
+  // B — TÉRREO — 328 / 328
+  // ═══════════════════════════════════════════════
+
+  {id:15,name:"Anísio Teixeira - EMEB",p:19,setor:"SBPT"},
+  {id:16,name:"Alzira Martins de Mendonça, Professora - EMEB",p:28,setor:"SBPT"},
+  {id:17,name:"Aureo Cruz, Professor - EMEB",p:22,setor:"SBPT"},
+  {id:18,name:"Lourenço Filho - EMEB",p:13,setor:"SBPT"},
+  {id:19,name:"Antônio Pereira Coutinho - EMEB",p:24,setor:"SBPT"},
+  {id:20,name:"Caetano de Campos - EMEB",p:15,setor:"SBPT"},
+  {id:21,name:"Marcelo Roberto Dias - EMEB",p:45,setor:"SBPT"},
+  {id:22,name:"Manuel da Nóbrega, Padre - EMEB",p:21,setor:"SBPT"},
+  {id:23,name:"Nazareth, Jardim - EMEB",p:51,setor:"SBPT"},
+  {id:24,name:"Paschoal Carlos Magno - EMEB",p:22,setor:"SBPT"},
+  {id:25,name:"Regina Rocco Casa I - EMEB",p:51,setor:"SBPT"},
+  {id:26,name:"Tereza Delta - EMEB",p:17,setor:"SBPT"},
+
+
+  // ═══════════════════════════════════════════════
+  // D — TÉRREO — 169 / 169
+  // ═══════════════════════════════════════════════
+
+  {id:27,name:"Aluísio de Azevedo - EMEB",p:65,setor:"SDPT"},
+  {id:28,name:"Cândido Portinari - EMEB",p:21,setor:"SDPT"},
+  {id:29,name:"Cícero Porfírio dos Santos/Gilberto Lazzuri - EMEB",p:41,setor:"SDPT"},
+  {id:30,name:"José Maurício, Padre - EMEB",p:16,setor:"SDPT"},
+  {id:31,name:"Monteiro Lobato - EMEB",p:26,setor:"SDPT"},
+
+
+  // ═══════════════════════════════════════════════
+  // E — TÉRREO — 114 / 114
+  // ═══════════════════════════════════════════════
+
+  {id:32,name:"Ana Maria Poppovic - EMEB",p:21,setor:"SEPT"},
+  {id:33,name:"Francisco Miele - EMEB",p:19,setor:"SEPT"},
+  {id:34,name:"Gonçalves Dias - EMEB",p:16,setor:"SEPT"},
+  {id:35,name:"Heitor Villa-Lobos - EMEB",p:10,setor:"SEPT"},
+  {id:36,name:"Mariana Benvinda da Costa - EMEB",p:23,setor:"SEPT"},
+  {id:37,name:"Pedro Morassi - EMEB",p:9,setor:"SEPT"},
+  {id:38,name:"Vicente de Carvalho - EMEB",p:16,setor:"SEPT"},
+
+
+  // ═══════════════════════════════════════════════
+  // F — TÉRREO — 112 / 112
+  // ═══════════════════════════════════════════════
+
+  {id:39,name:"Cecília Meireles - EMEB",p:20,setor:"SFPT"},
+  {id:40,name:"Euclides da Cunha - EMEB",p:19,setor:"SFPT"},
+  {id:41,name:"Francisco Beltran Batistini, Paquito - EMEB",p:18,setor:"SFPT"},
+  {id:42,name:"José de Anchieta - EMEB",p:22,setor:"SFPT"},
+  {id:43,name:"Lauro Gomes - EMEB",p:20,setor:"SFPT"},
+  {id:44,name:"Paulo Morando - EMEB",p:13,setor:"SFPT"},
+
+
+  // ═══════════════════════════════════════════════
+  // A — SUPERIOR — 121 / 121
+  // CENTRAL
+  // ═══════════════════════════════════════════════
+
+  {id:45,name:"Alice do Lago Gonçalves Salvador, Professora - EMEB",p:18,setor:"SAPS"},
+  {id:46,name:"Carlos Gomes - EMEB",p:24,setor:"SAPS"},
+  {id:47,name:"Cléia Maria Teures de Souza - EMEB",p:19,setor:"SAPS"},
+  {id:48,name:"Fernando Pessoa - EMEB",p:18,setor:"SAPS"},
+  {id:49,name:"Odette Edith Périgo de Lima - EMEB",p:27,setor:"SAPS"},
+  {id:50,name:"Vital Brasil - EMEB",p:15,setor:"SAPS"},
+
+
+  // ═══════════════════════════════════════════════
+  // B — SUPERIOR — 100 / 100
+  // CENTRAL
+  // ═══════════════════════════════════════════════
+
+  {id:51,name:"Ana Henriqueta Clark Marim, Professora - EMEB",p:27,setor:"SBPS"},
+  {id:52,name:"Antônio de Lima - EMEB",p:25,setor:"SBPS"},
+  {id:53,name:"José de Alencar - EMEB",p:16,setor:"SBPS"},
+  {id:54,name:"Mariana Neves Interliche - EMEB",p:16,setor:"SBPS"},
+  {id:55,name:"Maurício Caetano de Castro I - EMEB",p:16,setor:"SBPS"},
+
+
+  // ═══════════════════════════════════════════════
+  // C — SUPERIOR — 101 / 101
+  // CENTRAL
+  // ═══════════════════════════════════════════════
+
+  {id:56,name:"Aldino Pinotti - EMEB",p:31,setor:"SCPS"},
+  {id:57,name:"Coelho Neto - EMEB",p:17,setor:"SCPS"},
+  {id:58,name:"Graciliano Ramos - EMEB",p:25,setor:"SCPS"},
+  {id:59,name:"Guilherme de Almeida - EMEB",p:17,setor:"SCPS"},
+  {id:60,name:"Santos Dumont - EMEB",p:11,setor:"SCPS"},
+
+
+  // ═══════════════════════════════════════════════
+  // D — SUPERIOR — 104 / 137
+  // LATERAL
+  // ═══════════════════════════════════════════════
+
+  {id:61,name:"Ariano Suassuna - EMEB",p:37,setor:"SDPS"},
+  {id:62,name:"Carolina Maria de Jesus - EMEB",p:39,setor:"SDPS"},
+  {id:63,name:"Jorge Marcos de Oliveira - O bispo dos trabalhadores, Dom - EMEB",p:12,setor:"SDPS"},
+  {id:64,name:"Ondina Ignêz de Oliveira - EMEB",p:16,setor:"SDPS"},
+
+
+  // ═══════════════════════════════════════════════
+  // E — SUPERIOR — 105 / 139
+  // LATERAL
+  // ═══════════════════════════════════════════════
+
+  {id:65,name:"Di Cavalcanti - EMEB",p:4,setor:"SEPS"},
+  {id:66,name:"Cassiano Ricardo - EMEB",p:21,setor:"SEPS"},
+  {id:67,name:"Castro Alves - EMEB",p:17,setor:"SEPS"},
+  {id:68,name:"Leonardo Nunes, Padre - EMEB",p:12,setor:"SEPS"},
+  {id:69,name:"Odete - Maria Ramos Pinto, Irmã - EMEB",p:39,setor:"SEPS"},
+  {id:70,name:"Vinícius de Moraes - EMEB",p:12,setor:"SEPS"}
+];
+
+const NOVA_DISTRIBUICAO = {
+
+  // C — Térreo
+  1: "SCPT",
+  2: "SCPT",
+  3: "SCPT",
+  4: "SCPT",
+  5: "SCPT",
+  6: "SCPT",
+  7: "SCPT",
+  999: "SCPT",
+
+  // A — Térreo
+  8: "SAPT",
+  9: "SAPT",
+  10: "SAPT",
+  11: "SAPT",
+  12: "SAPT",
+  13: "SAPT",
+  14: "SAPT",
+
+  // B — Térreo
+  15: "SBPT",
+  16: "SBPT",
+  17: "SBPT",
+  18: "SBPT",
+  19: "SBPT",
+  20: "SBPT",
+  21: "SBPT",
+  22: "SBPT",
+  23: "SBPT",
+  24: "SBPT",
+  25: "SBPT",
+  26: "SBPT",
+
+  // D — Térreo
+  27: "SDPT",
+  28: "SDPT",
+  29: "SDPT",
+  30: "SDPT",
+  31: "SDPT",
+
+  // E — Térreo
+  32: "SEPT",
+  33: "SEPT",
+  34: "SEPT",
+  35: "SEPT",
+  36: "SEPT",
+  37: "SEPT",
+  38: "SEPT",
+
+  // F — Térreo
+  39: "SFPT",
+  40: "SFPT",
+  41: "SFPT",
+  42: "SFPT",
+  43: "SFPT",
+  44: "SFPT",
+
+  // A — Superior
+  45: "SAPS",
+  46: "SAPS",
+  47: "SAPS",
+  48: "SAPS",
+  49: "SAPS",
+  50: "SAPS",
+
+  // B — Superior
+  51: "SBPS",
+  52: "SBPS",
+  53: "SBPS",
+  54: "SBPS",
+  55: "SBPS",
+
+  // C — Superior
+  56: "SCPS",
+  57: "SCPS",
+  58: "SCPS",
+  59: "SCPS",
+  60: "SCPS",
+
+  // D — Superior
+  61: "SDPS",
+  62: "SDPS",
+  63: "SDPS",
+  64: "SDPS",
+
+  // E — Superior
+  65: "SEPS",
+  66: "SEPS",
+  67: "SEPS",
+  68: "SEPS",
+  69: "SEPS",
+  70: "SEPS"
+};
+
+SCHOOLS.forEach(school => {
+  const novoSetor = NOVA_DISTRIBUICAO[school.id];
+
+  if (novoSetor) {
+    school.setor = novoSetor;
+  }
+});
+
+
+// Mapeamento Direto: ID -> Cor Hexadecimal
+const MANUAL_COLORS = {
+  1: "#e63946", 2: "#f4845f", 3: "#f9c74f", 4: "#57cc99", 5: "#43aa8b",
+  6: "#4cc9f0", 7: "#4361ee", 8: "#7209b7", 9: "#f72585", 10: "#ff6b35",
+  11: "#06d6a0", 12: "#118ab2", 13: "#ffd166", 14: "#ef476f", 15: "#3a86ff",
+  16: "#8338ec", 17: "#fb5607", 18: "#ffbe0b", 19: "#ff006e", 20: "#8ac926",
+  21: "#52b788", 22: "#e9c46a", 23: "#f77f00", 24: "#d62828", 25: "#457b9d",
+  26: "#81b29a", 27: "#f2cc8f", 28: "#e07a5f", 29: "#a8dadc", 30: "#b8f0e6",
+  31: "#2ec4b6", 32: "#264653", 33: "#ff9f1c", 34: "#d4e09b", 35: "#6d6875",
+  36: "#b5838d", 37: "#e5989b", 38: "#ffb4a2", 39: "#ffddd2", 40: "#c77dff",
+  41: "#9d4edd", 42: "#5a189a", 43: "#e9d8a6", 44: "#ff7b00", 45: "#ee9b00",
+  46: "#ca6702", 47: "#bb3e03", 48: "#ae2012", 49: "#9b2226", 50: "#023e8a",
+  51: "#6a994e", 52: "#a7c957", 53: "#386641", 54: "#bc4749", 55: "#606c38",
+  56: "#dda15e", 57: "#bc6c25", 58: "#4d908e", 59: "#277da1", 60: "#f94144",
+  61: "#f3722c", 62: "#f8961e", 63: "#f9844a", 64: "#90be6d", 65: "#2dc653",
+  66: "#0096c7", 67: "#577590", 68: "#3a0ca3", 69: "#2a9d8f", 70: "#e76f51",
+  71: "#264653", 72: "#e63946", 73: "#f4845f",
+  // IDs Especiais
+  999: "#FFFFFF", // Organização (Branco)
+  888: "transparent" // Espaço Disponível
+};
+
+// Gera o objeto de cores SC a partir do mapeamento manual
+const SC = {};
+SCHOOLS.forEach(s => {
+  SC[s.id] = MANUAL_COLORS[s.id] || "#444444"; // Cor padrão caso o ID não esteja na lista
+});
+
+const SORDER = [
+  // PISO TÉRREO
+  "SEPT",
+  "SFPT",
+  "SDPT",
+  "SCPT",
+  "SBPT",
+  "SAPT",
+
+  // PISO SUPERIOR
+  "SDPS",
+  "SEPS",
+  "SBPS",
+  "SCPS",
+  "SAPS"
+];
+
+const SETOR_NOMES = {
+  SEPT: "Setor E — Piso Térreo",
+  SFPT: "Setor F — Piso Térreo",
+  SDPS: "Setor D — Piso Superior",
+  SEPS: "Setor E — Piso Superior",
+  SBPS: "Setor B — Piso Superior",
+  SCPS: "Setor C — Piso Superior",
+  SAPS: "Setor A — Piso Superior",
+  SDPT: "Setor D — Piso Térreo",
+  SCPT: "Setor C — Piso Térreo",
+  SBPT: "Setor B — Piso Térreo",
+  SAPT: "Setor A — Piso Térreo"
+};
+
+const SETOR_CURTO = {
+  SEPT: "E - Térreo",
+  SFPT: "F - Térreo",
+  SDPS: "D - Superior",
+  SEPS: "E - Superior",
+  SBPS: "B - Superior",
+  SCPS: "C - Superior",
+  SAPS: "A - Superior",
+  SDPT: "D - Térreo",
+  SCPT: "C - Térreo",
+  SBPT: "B - Térreo",
+  SAPT: "A - Térreo"
+};
+
+const bySetor={};SORDER.forEach(s=>bySetor[s]=[]);
+SCHOOLS.forEach(s=>bySetor[s.setor].push(s));
+
+// ─────────────────────────────────────────────────────────────
+// MOTOR SVG
+// ─────────────────────────────────────────────────────────────
+const svgEl=document.getElementById('svgmap');
+const NS='http://www.w3.org/2000/svg';
+const CX=480;
+let totalReserved=0;
+
+function R(d){return d*Math.PI/180}
+
+// Produz um array flat de slots por posição linear em todas as fileiras.
+// Cada slot é: {type:'school'|'empty'|'reserved', school?, rowIndex, colIndex}
+//
+// Lógica:
+//  1. As fileiras marcadas como reservadas (reservedRows) são inteiramente 'reserved'
+//  2. Nas fileiras restantes, aloca exatamente s.p cadeiras para cada escola (em ordem)
+//  3. Cadeiras sobrando na fileira → 'empty'
+
+/**
+ * Monta as cadeiras de um setor.
+ *
+ * O preenchimento utiliza padrão serpentina:
+ *
+ * Fileira 1: → → → → →
+ * Fileira 2: ← ← ← ← ←
+ * Fileira 3: → → → → →
+ *
+ * Dessa forma, quando uma escola continua na fileira seguinte,
+ * seus assentos permanecem fisicamente próximos.
+ */
+function buildSlots(
+  rowSeats,
+  schools,
+  reservedRows = [],
+  reverseFill = false
+) {
+
+  const reserved = new Set(reservedRows);
+
+  // ─────────────────────────────────────────────
+  // Cria fila de pessoas/escolas
+  // ─────────────────────────────────────────────
+
+  const queue = [];
+
+  schools.forEach(school => {
+    for (let i = 0; i < school.p; i++) {
+      queue.push(school);
+    }
+  });
+
+
+  // ─────────────────────────────────────────────
+  // Define ordem das fileiras
+  // ─────────────────────────────────────────────
+
+  let rowIndices = rowSeats.map((_, index) => index);
+
+  if (reverseFill) {
+    rowIndices.reverse();
+  }
+
+
+  const rows = new Array(rowSeats.length);
+
+  let queueIndex = 0;
+
+  // Conta somente fileiras efetivamente utilizáveis.
+  let activeRow = 0;
+
+
+  // ─────────────────────────────────────────────
+  // Preenchimento
+  // ─────────────────────────────────────────────
+
+  rowIndices.forEach(rowIndex => {
+
+    const seatsInRow = rowSeats[rowIndex];
+    const slots = new Array(seatsInRow);
+
+
+    // Fileira reservada
+    if (reserved.has(rowIndex)) {
+
+      for (let col = 0; col < seatsInRow; col++) {
+        slots[col] = {
+          type: "reserved",
+          rowIndex,
+          colIndex: col
+        };
+      }
+
+      rows[rowIndex] = slots;
+      return;
+    }
+
+
+    // ─────────────────────────────────────────
+    // SERPENTINA
+    //
+    // Fileiras pares:
+    // esquerda → direita
+    //
+    // Fileiras ímpares:
+    // direita → esquerda
+    // ─────────────────────────────────────────
+
+    const leftToRight = activeRow % 2 === 0;
+
+    for (let position = 0; position < seatsInRow; position++) {
+
+      const colIndex = leftToRight
+        ? position
+        : seatsInRow - 1 - position;
+
+
+      if (queueIndex < queue.length) {
+
+        slots[colIndex] = {
+          type: "school",
+          school: queue[queueIndex++],
+          rowIndex,
+          colIndex
+        };
+
+      } else {
+
+        slots[colIndex] = {
+          type: "empty",
+          rowIndex,
+          colIndex
+        };
+      }
+    }
+
+    rows[rowIndex] = slots;
+    activeRow++;
+  });
+
+
+  return rows;
+}
+
+
+// Desenha um setor completo
+// reservedRows = array de índices de fileiras reservadas (0 = mais próxima ao palco)
+function drawSector(cx,cy,rInner,rOuter,startDeg,endDeg,rowSeats,schools,reservedRows, reverseFill = false){
+  const nRows=rowSeats.length;
+  const rows = buildSlots(rowSeats, schools, reservedRows, reverseFill);
+  const rowH=(rOuter-rInner)/nRows;
+  const H_SEAT=rowH*0.72;
+  const GAP_ANG=R(0.35);
+  const g=document.createElementNS(NS,'g');
+
+  rows.forEach((slots,ri)=>{
+    const rMid=rInner+ri*rowH+rowH/2;
+    const n=slots.length; if(n===0) return;
+    const spanRad=R(endDeg-startDeg);
+    const seatAngW=(spanRad-(n+1)*GAP_ANG)/n;
+
+
+    slots.forEach((slot,si)=>{
+      const angCenter=R(startDeg)+GAP_ANG*(si+1)+seatAngW*(si+0.5);
+      const mx=cx+rMid*Math.cos(angCenter);
+      const my=cy-rMid*Math.sin(angCenter);
+      const wSeat=Math.max(1,seatAngW*rMid);
+      const hSeat=Math.max(1.5,H_SEAT);
+      const rotDeg=-(angCenter*180/Math.PI)+90;
+
+      const rect=document.createElementNS(NS,'rect');
+      rect.setAttribute('x',-wSeat/2);
+      rect.setAttribute('y',-(hSeat/2));
+      rect.setAttribute('width',wSeat);
+      rect.setAttribute('height',hSeat);
+      rect.setAttribute('rx',Math.min(1.2,wSeat*0.18));
+      rect.setAttribute('transform',`translate(${mx},${my}) rotate(${rotDeg})`);
+
+  if(slot.type === 'school'){
+  if(slot.school.id === 888) {
+    rect.setAttribute('class', 'seat-empty'); // Cadeira vazia (sem preenchimento)
+  } else {
+    // Para os demais IDs (incluindo 999), usa o que estiver no objeto SC
+    rect.setAttribute('fill', SC[slot.school.id]);
+    rect.setAttribute('class', 'seat');
+    rect.setAttribute('stroke', '#10121a');
+    rect.setAttribute('stroke-width', '0.4');
+    
+    // Atribui os dados para o balão de informações (Tooltip)
+    rect.dataset.id = slot.school.id;
+    rect.dataset.name = slot.school.name;
+    rect.dataset.p = slot.school.p;
+    rect.dataset.setor = slot.school.setor;
+    rect.dataset.color = SC[slot.school.id];
+  }
+} else if(slot.type==='reserved'){
+  rect.setAttribute('class','seat-reserved');
+  totalReserved++;
+} else {
+  rect.setAttribute('class','seat-empty');
+}
+
+      g.appendChild(rect);
+    });
+  });
+  svgEl.appendChild(g);
+}
+
+function arcLabel(cx,cy,rMid,a1,a2,lines){
+  const mid=R((a1+a2)/2),x=cx+rMid*Math.cos(mid),y=cy-rMid*Math.sin(mid);
+  const lh=12,top=y-(lines.length-1)*lh/2;
+  lines.forEach((l,i)=>{
+    const t=document.createElementNS(NS,'text');
+    t.setAttribute('x',x);t.setAttribute('y',top+i*lh);
+    t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','middle');
+    t.setAttribute('fill',`rgba(255,255,255,${l.a||0.6})`);
+    t.setAttribute('stroke','#10121a');t.setAttribute('stroke-width','0.8');
+    t.setAttribute('paint-order','stroke fill');
+    t.setAttribute('font-size',l.s||9);t.setAttribute('font-weight',l.b?'600':'400');
+    t.setAttribute('font-family','IBM Plex Sans,sans-serif');
+    t.setAttribute('pointer-events','none');t.textContent=l.t;
+    svgEl.appendChild(t);
+  });
+}
+function floorLabel(y,txt){
+  const t=document.createElementNS(NS,'text');
+  t.setAttribute('x',CX);t.setAttribute('y',y);
+  t.setAttribute('text-anchor','middle');t.setAttribute('dominant-baseline','middle');
+  t.setAttribute('fill','rgba(255,255,255,0.7)');t.setAttribute('font-size','9.5');
+  t.setAttribute('font-family','IBM Plex Sans,sans-serif');t.setAttribute('pointer-events','none');
+  t.textContent=txt;svgEl.appendChild(t);
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONSTANTES DE LAYOUT
+// ─────────────────────────────────────────────────────────────
+// Fileiras reservadas (índice 0 = mais próxima ao palco / menor raio):
+// Setores C, D, A do térreo → fileiras A, B, C = índices 0, 1, 2
+const RESERVED_ROWS_TER=[0,1,2]; // A, B, C
+
+
+// ══ PAVIMENTO SUPERIOR ══
+const CY_S=490,SR0=205,SR1=473;
+// Superior: sem fileiras reservadas
+drawSector(CX,CY_S,SR0,SR1, 72,108,[9,10,11,12,13,15,16,17,18],bySetor["SAPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,72,108,[{t:"SETOR A",s:10,b:true,a:.8},{t:"Sup · 121p",s:7.5,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1,112,138,[8,9,9,10,11,12,13,14,14],bySetor["SBPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,112,138,[{t:"SETOR B",s:9.5,b:true,a:.8},{t:"Sup · 100p",s:7,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1, 42, 68,[8,9,9,10,11,12,13,14,15],bySetor["SCPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,42,68,[{t:"SETOR C",s:9.5,b:true,a:.8},{t:"Sup · 101p",s:7,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1,142,170,[8,11,13,15,17,19,19,18,17],bySetor["SDPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,142,170,[{t:"SETOR D",s:9,b:true,a:.8},{t:"Sup · 137p",s:7,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1, 10, 38,[9,11,13,15,17,19,19,18,18],bySetor["SEPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,10,38,[{t:"SETOR E",s:9,b:true,a:.8},{t:"Sup · 139p",s:7,a:.65}]);
+
+floorLabel(420,"── PAVIMENTO SUPERIOR — 598 poltronas ──");
+
+
+
+// ══ PAVIMENTO TÉRREO ══
+const CY_T=1010,TR0=150,TR_AB=271,TR_GAP=289,TR1=430,TR2=485;
+
+// E térreo — sem reserva (lateral, não foi listado)
+drawSector(CX,CY_T,TR_GAP,TR1,124,170,[20,20,19,16,14,11,9,5],bySetor["SEPT"],[]);
+arcLabel(CX,CY_T,(TR_GAP+TR1)/2,124,170,[{t:"SETOR E",s:9,b:true,a:.8},{t:"Térreo · 114p",s:6.5,a:.65}]);
+
+// C térreo — fileiras A, B, C reservadas (índices 0,1,2)
+drawSector(CX,CY_T,TR0,TR_AB,124,170,[8,10,11,12,14,16,18,19,20,20,21],bySetor["SCPT"],[]);
+arcLabel(CX,CY_T,(TR0+TR_AB)/2,124,170,[{t:"SETOR C",s:9.5,b:true,a:.8},{t:"Térreo · 169p",s:7,a:.65}]);
+
+// A térreo — fileiras A, B, C reservadas
+drawSector(CX,CY_T,TR0,TR_AB,60,120,[14,15,16,17,18,19,21,22,23,24,25],bySetor["SAPT"],[0]);
+arcLabel(CX,CY_T,(TR0+TR_AB)/2,60,120,[{t:"SETOR A",s:10,b:true,a:.8},{t:"Térreo · 214p",s:7.5,a:.65}]);
+
+// B térreo — sem reserva (não listado)
+drawSector(CX,CY_T,TR_GAP,TR2,60,120,[25,28,29,31,32,33,34,35,36,33,12],bySetor["SBPT"],[]);
+arcLabel(CX,CY_T,(TR_GAP+TR2)/2,60,120,[{t:"SETOR B",s:10,b:true,a:.8},{t:"Térreo · 328p",s:7.5,a:.65}]);
+
+// D térreo — fileiras A, B, C reservadas
+drawSector(CX,CY_T,TR0,TR_AB,10,56,[8,10,11,12,14,16,18,19,20,20,21],bySetor["SDPT"],[]);
+arcLabel(CX,CY_T,(TR0+TR_AB)/2,10,56,[{t:"SETOR D",s:9.5,b:true,a:.8},{t:"Térreo · 169p",s:7,a:.65}]);
+
+// F térreo — sem reserva
+drawSector(CX,CY_T,TR_GAP,TR1,10,56,[20,20,19,16,14,11,8,4],bySetor["SFPT"],[]);
+arcLabel(CX,CY_T,(TR_GAP+TR1)/2,10,56,[{t:"SETOR F",s:9,b:true,a:.8},{t:"Térreo · 112p",s:6.5,a:.65}]);
+
+floorLabel(930,"── PAVIMENTO TÉRREO — 1.106 poltronas ──");
+
+// Atualiza contador de reservadas
+document.getElementById('stat-res').textContent=totalReserved.toLocaleString('pt-BR');
+
+// ─────────────────────────────────────────────
+// INTERAÇÃO
+// ─────────────────────────────────────────────
+const tip=document.getElementById('tip');
+let activeId=null;
+
+svgEl.addEventListener('click',e=>{
+  const el=e.target.closest('.seat');
+  if(!el){clearHL();return;}
+  toggleHL(+el.dataset.id);
+});
+svgEl.addEventListener('mouseover', e => {
+  const el = e.target.closest('rect'); // Captura qualquer retângulo (cadeira)
+  if (!el) return;
+
+  let content = "";
+
+  if (el.classList.contains('seat')) {
+    const s = SCHOOLS.find(x => x.id === +el.dataset.id);
+    if (!s) return;
+    content = `<b><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${SC[s.id]};margin-right:5px;vertical-align:middle"></span>${s.name}</b>
+      <span style="color:var(--muted);font-size:11px;display:block">${s.setor}</span>
+      <span style="color:#8899bb;font-size:11px">${s.p} pessoas</span>`;
+  } else if (el.classList.contains('seat-reserved')) {
+    content = `<b>Cadeira Reservada</b>`;
+  } else if (el.classList.contains('seat-empty')) {
+    content = `<b>Cadeira Disponível</b><span style="color:var(--muted);font-size:11px">Espaço livre</span>`;
+  }
+
+  if (content) {
+    tip.innerHTML = content;
+    tip.style.cssText = 'display:block;position:fixed;bottom:auto;transform:none';
+  }
+});
+svgEl.addEventListener('mousemove',e=>{
+  tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-8)+'px';
+});
+svgEl.addEventListener('mouseleave',()=>{if(!activeId)tip.style.display='none';});
+
+function toggleHL(id){
+  if(activeId===id){clearHL();return;}
+  activeId=id;
+  document.querySelectorAll('.seat').forEach(el=>el.classList.toggle('dim',+el.dataset.id!==id));
+  document.querySelectorAll('.li').forEach(el=>el.classList.toggle('dim',+el.dataset.id!==id));
+  const s=SCHOOLS.find(x=>x.id===id);
+  if(s){
+    tip.innerHTML=`<b><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${SC[s.id]};margin-right:5px;vertical-align:middle"></span>${s.name}</b>
+      <span style="color:var(--muted);font-size:11px;display:block">${s.setor}</span>
+      <span style="color:#8899bb;font-size:11px">${s.p} pessoas</span>`;
+    tip.style.cssText='display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:12px;top:auto';
+  }
+}
+function clearHL(){
+  activeId=null;
+  document.querySelectorAll('.seat,.li').forEach(el=>el.classList.remove('dim'));
+  tip.style.display='none';tip.style.transform='';
+}
+
+// --- LEGENDA (PÁGINA INICIAL) ---
+const legend = document.getElementById('legend');
+legend.innerHTML = ''; 
+
+// 1. Consolida as duplicatas da Legenda
+const consolidatedLegend = {};
+SCHOOLS.forEach(s => {
+  if (s.id === 999 || s.id === 888) return; // Ignora especiais
+
+  if (!consolidatedLegend[s.id]) {
+    consolidatedLegend[s.id] = { ...s };
+  } else {
+    consolidatedLegend[s.id].p += s.p; // Soma pessoas
+  }
+});
+
+// 2. Renderiza Legenda em Ordem Alfabética
+Object.values(consolidatedLegend)
+  .sort((a, b) => a.name.localeCompare(b.name)) 
+  .forEach(s => {
+    const d = document.createElement('div');
+    d.className = 'li'; 
+    d.dataset.id = s.id;
+    const sec = SETOR_CURTO[s.setor] || s.setor;
+
+    d.innerHTML = `
+      <div class="li-dot" style="background:${SC[s.id]}"></div>
+      <span class="li-name">${s.name}</span>
+      <span class="li-sec">${sec}</span>
+      <span class="li-n">${s.p}p</span>
+    `;
+
+    d.addEventListener('click', () => toggleHL(s.id));
+    legend.appendChild(d);
+});
+
+// --- SETORES (ABA POR SETOR) ---
+const sg = document.getElementById('sg');
+sg.innerHTML = ''; // Limpa antes de renderizar
+SORDER.forEach((sec, si) => {
+  const allSchoolsInSector = bySetor[sec].filter(s => s.id !== 999 && s.id !== 888);
+  if (!allSchoolsInSector.length) return;
+
+  // Consolida duplicatas dentro do setor
+  const uniqueSchools = [];
+  const seenNames = new Set();
+
+  allSchoolsInSector.forEach(s => {
+    if (!seenNames.has(s.name)) {
+      uniqueSchools.push({ ...s });
+      seenNames.add(s.name);
+    } else {
+      const existing = uniqueSchools.find(x => x.name === s.name);
+      existing.p += s.p;
+    }
+  });
+
+  // Ordena Escolas do Setor de A-Z
+  uniqueSchools.sort((a, b) => a.name.localeCompare(b.name));
+
+  const total = uniqueSchools.reduce((a, s) => a + s.p, 0);
+  const card = document.createElement('div');
+  card.className = 'sc';
+  card.innerHTML = `
+    <div class="sc-hd">
+      <div class="sc-bar" style="background:${SC[uniqueSchools[0].id]}"></div>
+      <div>
+        <div class="sc-title">${SETOR_NOMES[sec] || sec}</div>
+        <div class="sc-sub">Saída #${si + 1} · ${uniqueSchools.length} escola${uniqueSchools.length > 1 ? 's' : ''} · ${total} pessoas</div>
+      </div>
+    </div>`;
+
+  uniqueSchools.forEach(s => {
+    const r = document.createElement('div');
+    r.className = 'sr';
+    r.innerHTML = `
+      <div class="d" style="background:${SC[s.id]}"></div>
+      <span class="nm">${s.name}</span><span class="np">${s.p}p</span>`;
+    r.addEventListener('click', () => { showTab('mapa'); setTimeout(() => toggleHL(s.id), 80); });
+    card.appendChild(r);
+  });
+  sg.appendChild(card);
+});
+
+// --- LISTA (ABA DE BUSCA) ---
+const fl = document.getElementById('fl');
+function renderList(q = '') {
+  fl.innerHTML = '';
+  
+  // 1. Filtra busca e IDs especiais
+  const filtered = SCHOOLS.filter(s => {
+    const isNotOrg = s.id !== 999 && s.id !== 888;
+    const matchesQuery = !q || s.name.toLowerCase().includes(q.toLowerCase()) || s.setor.toLowerCase().includes(q.toLowerCase());
+    return isNotOrg && matchesQuery;
+  });
+
+  // 2. Consolida duplicatas para a lista global
+  const uniqueList = [];
+  const seenNames = new Set();
+
+  filtered.forEach(s => {
+    if (!seenNames.has(s.name)) {
+      uniqueList.push({ ...s });
+      seenNames.add(s.name);
+    } else {
+      const existing = uniqueList.find(x => x.name === s.name);
+      existing.p += s.p;
+    }
+  });
+
+  // 3. Ordena Lista Global de A-Z e Renderiza
+  uniqueList.sort((a, b) => a.name.localeCompare(b.name));
+
+  uniqueList.forEach(s => {
+    const d = document.createElement('div');
+    d.className = 'fi';
+    d.innerHTML = `
+      <div class="d" style="background:${SC[s.id]}"></div>
+      <span class="nm">${s.name}</span>
+      <span class="sec">${SETOR_CURTO[s.setor] || s.setor}</span>
+      <span class="np">${s.p}p</span>`;
+    d.addEventListener('click', () => { showTab('mapa'); setTimeout(() => toggleHL(s.id), 80); });
+    fl.appendChild(d);
+  });
+}
+
+// Inicialização e Funções de Navegação
+renderList();
+function filtrar(){ renderList(document.getElementById('search').value); }
+
+function showTab(id){
+  document.querySelectorAll('section').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('tab-' + id).classList.add('on');
+  const idx = {mapa: 0, setores: 1, lista: 2}[id];
+  if(document.querySelectorAll('.tab')[idx]) {
+    document.querySelectorAll('.tab')[idx].classList.add('on');
+  }
+}
+</script>
+</body>
+</html>
