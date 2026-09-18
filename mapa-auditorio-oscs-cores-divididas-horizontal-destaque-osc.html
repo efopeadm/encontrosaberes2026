@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Mapa do Auditório — Distribuição das OSCs</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#10121a;--surf:#161921;--surf2:#1c2030;--brd:#252c3e;--txt:#dde2f0;--muted:#5a6480;--txt2:#b5b9c2;--acc:#5b7cf7}
+body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    display: flex; /* Adicionado */
+    flex-direction: column; /* Adicionado */
+    overflow-x: hidden;
+}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--brd);background:var(--surf);position:sticky;top:0;z-index:200}
+header h1{font-size:13px;font-weight:500;line-height:1.3}
+header span{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;white-space:nowrap;margin-left:8px}
+nav{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--brd);overflow-x:auto}
+.tab{padding:7px 14px;border-radius:7px 7px 0 0;font-size:12px;cursor:pointer;color:var(--muted);border:1px solid transparent;border-bottom:none;transition:all .14s;white-space:nowrap}
+.tab.on{background:var(--surf2);color:var(--txt);border-color:var(--brd)}
+section{display:none;padding:14px 16px}
+section.on{display:block}
+
+#mapwrap{overflow:auto;-webkit-overflow-scrolling:touch;background:var(--surf);border:1px solid var(--brd);border-radius:10px;padding:8px}
+#svgmap{display:block;min-width:700px;width:100%;height:auto}
+
+/* ── Tipos de cadeira ── */
+/* Ocupada por escola */
+.seat{cursor:pointer;transition:opacity .1s}
+.seat:hover{opacity:.75}
+.seat.dim{opacity:.06}
+/* Vazia — contorno sutil */
+.seat-empty{fill:none;stroke:rgba(255,255,255,0.13);stroke-width:0.55px;pointer-events:auto;cursor:default}
+/* Reservada — cinza escuro semitransparente */
+.seat-reserved{fill:rgba(120,130,160,0.22);stroke:rgba(180,190,220,0.28);stroke-width:0.55px;pointer-events:auto;cursor:default}
+
+.tip{position:fixed;background:#1a1e2e;border:1px solid var(--brd);border-radius:8px;padding:9px 13px;font-size:12px;pointer-events:none;z-index:999;max-width:240px;line-height:1.6;box-shadow:0 6px 28px rgba(0,0,0,.65);display:none}
+.tip b{font-size:13px;display:block;margin-bottom:2px}
+
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.stats{display:none}
+.st{background:var(--surf);border:1px solid var(--brd);border-radius:7px;padding:8px 12px;min-width:80px}
+.st label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;display:block}
+.st strong{font-size:17px;font-weight:600;font-family:'IBM Plex Mono',monospace;display:block;margin-top:1px}
+.hint{font-size:12px;color:var(--txt2);margin-bottom:8px}
+
+/* legenda de tipos */
+.map-legend-types{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--muted)}
+.map-legend-types span{display:flex;align-items:center;gap:5px}
+.sw{width:11px;height:11px;border-radius:2px;display:inline-block;flex-shrink:0}
+.sw-school{background:linear-gradient(180deg,#5b7cf7 0 50%,#ffbe0b 50% 100%)}
+.sw-reserved{background:rgba(120,130,160,0.4);border:1px solid rgba(180,190,220,0.4)}
+.sw-empty{background:none;border:1px solid rgba(255,255,255,0.25)}
+
+/* Legenda das OSCs */
+.osc-legend{display:flex;flex-wrap:wrap;gap:7px 10px;margin:0 0 12px;font-size:10px;color:var(--txt2)}
+.osc-legend-item{display:flex;align-items:center;gap:5px;background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:4px 7px;cursor:pointer;transition:background .14s,border-color .14s,opacity .14s,transform .14s;user-select:none}
+.osc-legend-item:hover{background:var(--surf2);border-color:var(--acc);transform:translateY(-1px)}
+.osc-legend-item.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;background:var(--surf2)}
+.osc-legend-item.dim{opacity:.22}
+.osc-legend-dot{width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0}
+
+#legend{margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:3px}
+.li{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:5px;cursor:pointer;transition:background .12s;font-size:11px}
+.li:hover{background:var(--surf2)}.li.dim{opacity:.18}
+.li-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.li-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li-sec{color:var(--muted);font-size:9px;flex-shrink:0}
+.li-n{background:var(--surf2);color:var(--muted);font-size:9px;font-family:'IBM Plex Mono',monospace;padding:1px 4px;border-radius:3px;flex-shrink:0}
+
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.sc{background:var(--surf);border:1px solid var(--brd);border-radius:9px;overflow:hidden}
+.sc-hd{padding:10px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--brd)}
+.sc-bar{width:4px;height:28px;border-radius:2px;flex-shrink:0}
+.sc-title{font-size:12px;font-weight:500}.sc-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.sr{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:11px;border-bottom:1px solid var(--brd)}
+.sr:last-child{border-bottom:none}
+.sr .d{width:8px;height:8px;border-radius:50%;flex-shrink:0}.sr .nm{flex:1}
+.sr .np{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+
+.search{padding:0 0 12px}
+.search input{width:100%;background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:7px 12px;color:var(--txt);font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none}
+.search input:focus{border-color:var(--acc)}.search input::placeholder{color:var(--muted)}
+#fl{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:4px}
+.fi{display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surf);border:1px solid var(--brd);border-radius:6px;cursor:pointer;transition:border-color .12s}
+.fi:hover{border-color:var(--acc)}
+.fi .d{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fi .nm{flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi .sec{font-size:9px;color:var(--muted)}.fi .np{font-size:9px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+
+/* Estilos do Rodapé / Marca D'água */
+footer {
+    padding: 24px 16px;
+    border-top: 1px solid var(--brd);
+    background: var(--surf);
+    text-align: center;
+    margin-top: auto; /* Empurra o rodapé para o fim da página */
+}
+
+.watermark {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    line-height: 1.6;
+}
+
+
+</style>
+</head>
+<body>
+<header>
+  <h1>Mapa do Auditório — Distribuição das OSCs</h1>
+</header>
+<nav>
+  <div class="tab on" onclick="showTab('mapa')">Mapa Visual</div>
+  <div class="tab" onclick="showTab('setores')">Por Setor</div>
+  <div class="tab" onclick="showTab('lista')">Lista</div>
+</nav>
+
+<section class="on" id="tab-mapa">
+  <div class="stats">
+    <div class="st"><label>Grupos</label><strong>126</strong></div>
+    <div class="st"><label>Pessoas</label><strong>1603</strong></div>
+    <div class="st"><label>Poltronas</label><strong>1.704</strong></div>
+    <div class="st"><label>Reservadas</label><strong id="stat-res">—</strong></div>
+  </div>
+
+  <div class="map-legend-types">
+    <span><span class="sw sw-school"></span>Metade escola / metade OSC</span>
+    <span><span class="sw sw-reserved"></span>Autoridades</span>
+    <span><span class="sw sw-empty"></span>Disponíveis</span>
+  </div>
+  <div id="oscLegend" class="osc-legend"></div>
+
+  <p class="hint">Cada cadeira combina a cor da escola (metade superior) com a cor da OSC (metade inferior). Toque numa cadeira para destacar a escola ou clique na legenda de uma OSC para destacar todas as suas cadeiras.</p>
+  <div id="mapwrap">
+    <svg id="svgmap" viewBox="0 0 960 1120" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div id="legend"></div>
+</section>
+<section id="tab-setores"><div class="sg" id="sg"></div></section>
+<section id="tab-lista">
+  <div class="search"><input id="search" type="text" placeholder="Buscar escola, OSC ou setor..." oninput="filtrar()"></div>
+  <div id="fl"></div>
+</section>
+<footer>
+    <div class="watermark">
+        © 2026 Mateus C. Stauder (EFOPE) — Todos os direitos reservados.
+        <br>Sistema de Gestão de Assentos v1.0
+    </div>
+</footer>
+<div class="tip" id="tip"></div>
+
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// DADOS — DISTRIBUIÇÃO DAS OSCs
+// Gerado a partir da aba DISTRIBUIÇÃO da planilha consolidada.
+// ─────────────────────────────────────────────────────────────
+const SCHOOLS = [
+{"id":1,"name":"EMEB ALUÍSIO DE AZEVEDO","p":23,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":2,"name":"EMEB CASSIANO RICARDO","p":12,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":3,"name":"EMEB LOURENÇO FILHO","p":6,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":4,"name":"EMEB PROFESSOR ÁUREO CRUZ","p":18,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":5,"name":"EMEB THALES DE ANDRADE","p":14,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":6,"name":"EMEB CICERO PORFIRIO DOS SANTOS","p":13,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":7,"name":"EMEB JARDIM NAZARETH","p":18,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":8,"name":"EMEB JOSÉ DE ALENCAR","p":6,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":9,"name":"EMEB JOSÉ DE ANCHIETA","p":21,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":10,"name":"EMEB MARIANA NEVES INTERLICHE","p":11,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":11,"name":"EMEB MOYSÉS CHEID","p":14,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":12,"name":"EMEB ONDINA IGNÊS","p":15,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":13,"name":"EMEB PADRE JOSÉ MAURICIO","p":11,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+{"id":14,"name":"SUPERVISORAS","p":3,"setor":"SAPT","osc":"A PALAVRA DE DEUS"},
+
+{"id":37,"name":"EMEB COELHO NETO","p":9,"setor":"SBPT","osc":"A PALAVRA DE DEUS"},
+{"id":38,"name":"EMEB GUILHERME DE ALMEIDA","p":10,"setor":"SBPT","osc":"A PALAVRA DE DEUS"},
+{"id":39,"name":"EMEB LUIZ GUSHIKEN","p":31,"setor":"SBPT","osc":"A PALAVRA DE DEUS"},
+{"id":15,"name":"EMEB ALDINO PINOTTI","p":15,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":16,"name":"EMEB ANA HENRIQUETA CLARK MARIN, PROF°","p":18,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":17,"name":"EMEB ANISIO TEIXEIRA","p":14,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":18,"name":"EMEB ARIANO SUASSUNA","p":20,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":19,"name":"EMEB CAETANO DE CAMPOS","p":9,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":20,"name":"EMEB CANDIDO PORTINARI","p":14,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":21,"name":"EMEB CAROLINA MARIA DE JESUS","p":25,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":22,"name":"EMEB CASTRO ALVES","p":9,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":23,"name":"EMEB CECILIA MEIRELES","p":12,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":24,"name":"EMEB GONÇALVES DIAS","p":9,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":25,"name":"EMEB LAURO GOMES","p":14,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":26,"name":"EMEB LEONARDO NUNES, PADRE","p":7,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":27,"name":"EMEB MANUEL DA NÓBREGA, PADRE","p":9,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":28,"name":"EMEB MONTEIRO LOBATO","p":13,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":29,"name":"EMEB ODETTE EDITH PÉRIGO DE LIMA","p":16,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":30,"name":"EMEB OLAVO BILAC","p":19,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":31,"name":"EMEB PASCHOAL CARLOS MAGNO","p":10,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":32,"name":"EMEB RUI BARBOSA","p":7,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":33,"name":"EMEB SANTOS DUMONT","p":7,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":34,"name":"EMEB VICENTE DE CARVALHO","p":16,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":35,"name":"EMEB VINICIUS DE MORAES","p":7,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+{"id":36,"name":"EMEB VITAL BRASIL","p":8,"setor":"SBPT","osc":"FUNDAÇÃO DO ABC"},
+
+{"id":40,"name":"EMEB Ana Maria Poppovic","p":14,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":41,"name":"EMEB Antônio Pereira Coutinho","p":16,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":42,"name":"EMEB Cleia Maria Teures de Souza","p":10,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":43,"name":"EMEB Fernando Pessoa","p":14,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":44,"name":"EMEB Francisco Beltran Batstini \"PAQUITO\"","p":19,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":45,"name":"EMEB Professora Sandra Cruz Martins Freitas","p":25,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":46,"name":"EMEB Tereza Delta","p":17,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":47,"name":"EMEB Marcelo Roberto Dias","p":21,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":48,"name":"EMEB Francisco Miele","p":14,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":49,"name":"EMEB Pedro Morassi","p":6,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":50,"name":"EMEB Paulo Morando","p":6,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+{"id":51,"name":"EMEB Heitor Villa Lobos","p":7,"setor":"SCPT","osc":"EDIFICANDO VIDAS"},
+
+{"id":60,"name":"EMEB Carlos Gomes","p":17,"setor":"SEPT","osc":"EDIFICANDO VIDAS"},
+{"id":61,"name":"EMEB Mário de Andrade","p":3,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":62,"name":"EMEB Viriato Correia","p":3,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":63,"name":"EMEB Neusa Bassetto","p":1,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":64,"name":"EMEBE Rolando Ramacciotti","p":3,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":65,"name":"EMEB Otílio de Oliveira","p":4,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":66,"name":"EMEB Padre Fiorente Elena","p":4,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":67,"name":"EMEB Maria Adelaide","p":15,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":68,"name":"EMEB Maria Adelaide Rossi","p":1,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":69,"name":"EMEB Profº Paulo Teixeira de Camargo","p":2,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":70,"name":"EMEB Professor Ramiro Gonçalez Fernandes","p":2,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":71,"name":"EMEB Prof. Cassiano Faria","p":1,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":72,"name":"EMEB Profº Nádia Aparecida Issa Pina","p":3,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":73,"name":"EMEB Profª Jandira Maria Casonato","p":5,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":74,"name":"EMEB Prof. André Ferreira","p":3,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":75,"name":"EMEB Prof. Nilo Campos Gomes","p":1,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":76,"name":"EMEB Luiza Maria de Farias","p":2,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":77,"name":"EMEB Profª Janete Mally Betti Simões","p":2,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":78,"name":"EMEB José Luiz Jucá","p":2,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":79,"name":"EMEB Olegário José Godoy Sorocabinha","p":10,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":80,"name":"EMEB Regina Rocco Casa 2","p":1,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":81,"name":"EMEB Profª Marineida Meneghelli de Lucca","p":1,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":82,"name":"EMEB Profª Helena Zanfelici da Silva","p":1,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":83,"name":"EMEB Prof. Claudemir Gomes do Vale","p":2,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":84,"name":"EMEB Lorenzo Enrico Felice Lorenzetti","p":15,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+{"id":85,"name":"Supervisoras","p":8,"setor":"SEPT","osc":"UNINDO FORÇAS"},
+
+{"id":52,"name":"EMEB Antônio de Lima","p":15,"setor":"SDPT","osc":"ABEF"},
+{"id":53,"name":"EMEB  Marcos José Ribeiro","p":18,"setor":"SDPT","osc":"ABEF"},
+{"id":54,"name":"EMEB Mariana Benvinda da Costa","p":15,"setor":"SDPT","osc":"ABEF"},
+{"id":55,"name":"EMEB Maurício Caetano de Castro","p":12,"setor":"SDPT","osc":"ABEF"},
+{"id":56,"name":"EMEB Regina Dulce Donadelli Pinto","p":36,"setor":"SDPT","osc":"ABEF"},
+{"id":57,"name":"EMEB Regina Rocco - Casa I","p":24,"setor":"SDPT","osc":"ABEF"},
+{"id":58,"name":"EMEB Cora Coralina","p":21,"setor":"SDPT","osc":"ABEF"},
+{"id":59,"name":"EMEB Dom Jorge Marcos","p":10,"setor":"SDPT","osc":"ABEF"},
+
+{"id":86,"name":"EMEB Euclides da Cunha","p":14,"setor":"SFPT","osc":"ABEF"},
+{"id":87,"name":"EMEB Professora Ivaneide Nogueira","p":9,"setor":"SFPT","osc":"ABEF"},
+{"id":88,"name":"EMEB Di Cavalcanti","p":12,"setor":"SFPT","osc":"ABEF"},
+{"id":89,"name":"EMEB Graciliano Ramos","p":12,"setor":"SFPT","osc":"ABEF"},
+{"id":90,"name":"EMEB Hygino Baptista de Lima","p":13,"setor":"SFPT","osc":"ABEF"},
+{"id":91,"name":"EMEB Irmã Odete Maria Ramos Pinto","p":20,"setor":"SFPT","osc":"ABEF"},
+{"id":92,"name":"EMEB Professora Alice do Lago Gonçalves Salvador","p":12,"setor":"SFPT","osc":"ABEF"},
+{"id":93,"name":"EMEB Professora Alzira Martins Mendonça","p":16,"setor":"SFPT","osc":"ABEF"},
+{"id":94,"name":"SUPERVISORAS","p":3,"setor":"SFPT","osc":"ABEF"},
+
+{"id":95,"name":"Julio de Grammont - EMEB","p":15,"setor":"SAPS","osc":"GERAÇÃO FUTURA"},
+{"id":96,"name":"Professora Maria Justina de Camargo -EMEB","p":18,"setor":"SAPS","osc":"GERAÇÃO FUTURA"},
+{"id":97,"name":"Professora Neusa Macellaro Callado de Moraes - EMEB","p":23,"setor":"SAPS","osc":"GERAÇÃO FUTURA"},
+{"id":98,"name":"Celso Augusto Daniel - EMEB","p":33,"setor":"SAPS","osc":"GERAÇÃO FUTURA"},
+{"id":99,"name":"Maria Rosa Barbosa - EMEB","p":19,"setor":"SAPS","osc":"GERAÇÃO FUTURA"},
+{"id":100,"name":"José Cataldi - EMEB","p":13,"setor":"SAPS","osc":"GERAÇÃO FUTURA"},
+
+{"id":101,"name":"Mauricio Caetano de Castro II - EMEB","p":14,"setor":"SBPS","osc":"GERAÇÃO FUTURA"},
+{"id":102,"name":"Professor Salvador Gori - EMEB","p":20,"setor":"SBPS","osc":"GERAÇÃO FUTURA"},
+{"id":103,"name":"Bosko Preradovic - EMEB","p":27,"setor":"SBPS","osc":"GERAÇÃO FUTURA"},
+{"id":104,"name":"Ari Lacerda Rodrigues - EMEB","p":18,"setor":"SBPS","osc":"GERAÇÃO FUTURA"},
+{"id":105,"name":"Antonio do Santos Farias-EMEB","p":12,"setor":"SBPS","osc":"GERAÇÃO FUTURA"},
+{"id":106,"name":"Natalina Cuzziol Ferro - EMEB","p":9,"setor":"SBPS","osc":"GERAÇÃO FUTURA"},
+
+{"id":107,"name":"Lopes Trovão - EMEB","p":20,"setor":"SCPS","osc":"GERAÇÃO FUTURA"},
+{"id":108,"name":"Arlindo Miguel Teixeira - EMEB","p":30,"setor":"SCPS","osc":"GERAÇÃO FUTURA"},
+{"id":109,"name":"Marcos Rogério  da Rosa - EMEB","p":19,"setor":"SCPS","osc":"GERAÇÃO FUTURA"},
+{"id":110,"name":"Alfredo Scarpelli -EMEB","p":19,"setor":"SCPS","osc":"GERAÇÃO FUTURA"},
+{"id":111,"name":"Belmiro Soares da Cunha- EMEB","p":13,"setor":"SCPS","osc":"GERAÇÃO FUTURA"},
+
+{"id":112,"name":"Vicente Zammite Mammana, Doutor - EMEB","p":13,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+{"id":113,"name":"Pedro Augusto Gomes Cardim -EMEB","p":20,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+{"id":114,"name":"Três Marias-EMEB","p":8,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+{"id":115,"name":"Karolina Zofia Lewandowska - EMEB","p":24,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+{"id":116,"name":"Senador Teotonio Vilela EMEB","p":15,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+{"id":117,"name":"Vereador José Avilez -  EMEB","p":12,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+{"id":118,"name":"Professor Waldemar Canciani - EMEB","p":16,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+{"id":119,"name":"Marly Buissa Chiedde- EMEB","p":13,"setor":"SDPS","osc":"GERAÇÃO FUTURA"},
+
+{"id":120,"name":"Jose Getúlio Escobar Bueno -EMEB","p":19,"setor":"SEPS","osc":"GERAÇÃO FUTURA"},
+{"id":121,"name":"Doutor José Ferraz de Magalhães castro - EMEB","p":10,"setor":"SEPS","osc":"GERAÇÃO FUTURA"},
+{"id":122,"name":"Professor Florestan Fernades  EMEB","p":13,"setor":"SEPS","osc":"GERAÇÃO FUTURA"},
+{"id":123,"name":"Estudante Flaminio Araujo de Castro Rangel- EMEB","p":20,"setor":"SEPS","osc":"GERAÇÃO FUTURA"},
+{"id":124,"name":"Octávio Edgard de Oliveira - EMEB","p":6,"setor":"SEPS","osc":"GERAÇÃO FUTURA"},
+{"id":125,"name":"José Arnaud da Silva - EMEB","p":5,"setor":"SEPS","osc":"GERAÇÃO FUTURA"},
+{"id":126,"name":"Isidoro Battistin - EMEB","p":31,"setor":"SEPS","osc":"GERAÇÃO FUTURA"}];
+
+const SORDER = [
+  // PISO TÉRREO
+  "SAPT","SBPT","SCPT","SDPT","SEPT","SFPT",
+  // PISO SUPERIOR
+  "SAPS","SBPS","SCPS","SDPS","SEPS"
+];
+
+const SETOR_NOMES = {
+  SAPT: "Setor A — Piso Térreo",
+  SBPT: "Setor B — Piso Térreo",
+  SCPT: "Setor C — Piso Térreo",
+  SDPT: "Setor D — Piso Térreo",
+  SEPT: "Setor E — Piso Térreo",
+  SFPT: "Setor F — Piso Térreo",
+  SAPS: "Setor A — Piso Superior",
+  SBPS: "Setor B — Piso Superior",
+  SCPS: "Setor C — Piso Superior",
+  SDPS: "Setor D — Piso Superior",
+  SEPS: "Setor E — Piso Superior"
+};
+
+const SETOR_CURTO = {
+  SAPT: "A - Térreo",
+  SBPT: "B - Térreo",
+  SCPT: "C - Térreo",
+  SDPT: "D - Térreo",
+  SEPT: "E - Térreo",
+  SFPT: "F - Térreo",
+  SAPS: "A - Superior",
+  SBPS: "B - Superior",
+  SCPS: "C - Superior",
+  SDPS: "D - Superior",
+  SEPS: "E - Superior"
+};
+
+// ─────────────────────────────────────────────────────────────
+// CORES
+// Metade 1 da cadeira = cor individual da escola.
+// Metade 2 da cadeira = cor fixa da OSC.
+// ─────────────────────────────────────────────────────────────
+const OSC_COLORS = {
+  "FUNDAÇÃO DO ABC": "#3A86FF",
+  "EDIFICANDO VIDAS": "#2DC653",
+  "A PALAVRA DE DEUS": "#FFBE0B",
+  "ABEF": "#FB5607",
+  "GERAÇÃO FUTURA": "#8338EC",
+  "UNINDO FORÇAS": "#00B4D8"
+};
+
+// Gera uma cor própria para cada escola, independente da OSC.
+// O uso do ângulo áureo espalha os tons ao longo do círculo cromático.
+function colorForSchool(s) {
+  const hue = Math.round((s.id * 137.508) % 360);
+  const sat = 68 + (s.id % 3) * 7;
+  const light = 46 + (s.id % 4) * 4;
+  return `hsl(${hue} ${sat}% ${light}%)`;
+}
+
+const SC = {};
+SCHOOLS.forEach(s => SC[s.id] = colorForSchool(s));
+
+// Retorna o mesmo preenchimento horizontal usado visualmente nas cadeiras.
+function splitCss(school) {
+  const oscColor = OSC_COLORS[school.osc] || "#FFFFFF";
+  return `linear-gradient(180deg, ${SC[school.id]} 0 50%, ${oscColor} 50% 100%)`;
+}
+
+const bySetor = {};
+SORDER.forEach(s => bySetor[s] = []);
+SCHOOLS.forEach(s => bySetor[s.setor].push(s));
+
+// ─────────────────────────────────────────────────────────────
+// MOTOR SVG
+// ─────────────────────────────────────────────────────────────
+const svgEl = document.getElementById('svgmap');
+const NS = 'http://www.w3.org/2000/svg';
+const CX = 480;
+let totalReserved = 0;
+
+// Área de definições do SVG onde ficam os gradientes das cadeiras.
+const defs = document.createElementNS(NS, 'defs');
+svgEl.appendChild(defs);
+
+/**
+ * Cria (uma única vez) o gradiente 50/50 de uma escola.
+ * Metade superior: cor da escola.
+ * Metade inferior: cor da OSC.
+ */
+function getSeatFill(school) {
+  const gradientId = `seat-gradient-${school.id}`;
+  let gradient = document.getElementById(gradientId);
+
+  if (!gradient) {
+    gradient = document.createElementNS(NS, 'linearGradient');
+    gradient.setAttribute('id', gradientId);
+    gradient.setAttribute('x1', '0%');
+    gradient.setAttribute('y1', '0%');
+    gradient.setAttribute('x2', '0%');
+    gradient.setAttribute('y2', '100%');
+
+    const schoolColor = SC[school.id];
+    const oscColor = OSC_COLORS[school.osc] || '#FFFFFF';
+
+    [
+      ['0%', schoolColor],
+      ['50%', schoolColor],
+      ['50%', oscColor],
+      ['100%', oscColor]
+    ].forEach(([offset, color]) => {
+      const stop = document.createElementNS(NS, 'stop');
+      stop.setAttribute('offset', offset);
+      stop.setAttribute('stop-color', color);
+      gradient.appendChild(stop);
+    });
+
+    defs.appendChild(gradient);
+  }
+
+  return `url(#${gradientId})`;
+}
+
+function R(d) { return d * Math.PI / 180; }
+
+/**
+ * Monta as cadeiras do setor usando preenchimento serpentina.
+ *
+ * Exemplo:
+ * fileira 1: esquerda → direita
+ * fileira 2: direita → esquerda
+ * fileira 3: esquerda → direita
+ *
+ * Isso mantém os grupos espacialmente mais compactos.
+ *
+ * reservedRows usa índice 0 para a fileira mais próxima ao palco.
+ */
+function buildSlots(rowSeats, schools, reservedRows = [], reverseFill = false) {
+  const reserved = new Set(reservedRows);
+  const queue = [];
+
+  schools.forEach(school => {
+    for (let i = 0; i < school.p; i++) queue.push(school);
+  });
+
+  let rowIndices = rowSeats.map((_, index) => index);
+  if (reverseFill) rowIndices.reverse();
+
+  const rows = new Array(rowSeats.length);
+  let queueIndex = 0;
+  let activeRow = 0;
+
+  rowIndices.forEach(rowIndex => {
+    const seatsInRow = rowSeats[rowIndex];
+    const slots = new Array(seatsInRow);
+
+    if (reserved.has(rowIndex)) {
+      for (let col = 0; col < seatsInRow; col++) {
+        slots[col] = {
+          type: "reserved",
+          rowIndex,
+          colIndex: col
+        };
+      }
+      rows[rowIndex] = slots;
+      return;
+    }
+
+    const leftToRight = activeRow % 2 === 0;
+
+    for (let position = 0; position < seatsInRow; position++) {
+      const colIndex = leftToRight
+        ? position
+        : seatsInRow - 1 - position;
+
+      if (queueIndex < queue.length) {
+        slots[colIndex] = {
+          type: "school",
+          school: queue[queueIndex++],
+          rowIndex,
+          colIndex
+        };
+      } else {
+        slots[colIndex] = {
+          type: "empty",
+          rowIndex,
+          colIndex
+        };
+      }
+    }
+
+    rows[rowIndex] = slots;
+    activeRow++;
+  });
+
+  return rows;
+}
+
+function drawSector(
+  cx, cy, rInner, rOuter,
+  startDeg, endDeg,
+  rowSeats, schools,
+  reservedRows = [],
+  reverseFill = false
+) {
+  const nRows = rowSeats.length;
+  const rows = buildSlots(rowSeats, schools, reservedRows, reverseFill);
+  const rowH = (rOuter - rInner) / nRows;
+  const H_SEAT = rowH * 0.72;
+  const GAP_ANG = R(0.35);
+  const g = document.createElementNS(NS, 'g');
+
+  rows.forEach((slots, ri) => {
+    const rMid = rInner + ri * rowH + rowH / 2;
+    const n = slots.length;
+    if (n === 0) return;
+
+    const spanRad = R(endDeg - startDeg);
+    const seatAngW = (spanRad - (n + 1) * GAP_ANG) / n;
+
+    slots.forEach((slot, si) => {
+      const angCenter = R(startDeg) + GAP_ANG * (si + 1) + seatAngW * (si + 0.5);
+      const mx = cx + rMid * Math.cos(angCenter);
+      const my = cy - rMid * Math.sin(angCenter);
+      const wSeat = Math.max(1, seatAngW * rMid);
+      const hSeat = Math.max(1.5, H_SEAT);
+      const rotDeg = -(angCenter * 180 / Math.PI) + 90;
+
+      const rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('x', -wSeat / 2);
+      rect.setAttribute('y', -(hSeat / 2));
+      rect.setAttribute('width', wSeat);
+      rect.setAttribute('height', hSeat);
+      rect.setAttribute('rx', Math.min(1.2, wSeat * 0.18));
+      rect.setAttribute('transform', `translate(${mx},${my}) rotate(${rotDeg})`);
+
+      if (slot.type === 'school') {
+        rect.setAttribute('fill', getSeatFill(slot.school));
+        rect.setAttribute('class', 'seat');
+        rect.setAttribute('stroke', '#10121a');
+        rect.setAttribute('stroke-width', '0.4');
+
+        rect.dataset.id = slot.school.id;
+        rect.dataset.name = slot.school.name;
+        rect.dataset.p = slot.school.p;
+        rect.dataset.setor = slot.school.setor;
+        rect.dataset.osc = slot.school.osc;
+      } else if (slot.type === 'reserved') {
+        rect.setAttribute('class', 'seat-reserved');
+        totalReserved++;
+      } else {
+        rect.setAttribute('class', 'seat-empty');
+      }
+
+      g.appendChild(rect);
+    });
+  });
+
+  svgEl.appendChild(g);
+}
+
+function arcLabel(cx, cy, rMid, a1, a2, lines) {
+  const mid = R((a1 + a2) / 2);
+  const x = cx + rMid * Math.cos(mid);
+  const y = cy - rMid * Math.sin(mid);
+  const lh = 12;
+  const top = y - (lines.length - 1) * lh / 2;
+
+  lines.forEach((l, i) => {
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', x);
+    t.setAttribute('y', top + i * lh);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('dominant-baseline', 'middle');
+    t.setAttribute('fill', `rgba(255,255,255,${l.a || 0.6})`);
+    t.setAttribute('stroke', '#10121a');
+    t.setAttribute('stroke-width', '0.8');
+    t.setAttribute('paint-order', 'stroke fill');
+    t.setAttribute('font-size', l.s || 9);
+    t.setAttribute('font-weight', l.b ? '600' : '400');
+    t.setAttribute('font-family', 'IBM Plex Sans,sans-serif');
+    t.setAttribute('pointer-events', 'none');
+    t.textContent = l.t;
+    svgEl.appendChild(t);
+  });
+}
+
+function floorLabel(y, txt) {
+  const t = document.createElementNS(NS, 'text');
+  t.setAttribute('x', CX);
+  t.setAttribute('y', y);
+  t.setAttribute('text-anchor', 'middle');
+  t.setAttribute('dominant-baseline', 'middle');
+  t.setAttribute('fill', 'rgba(255,255,255,0.7)');
+  t.setAttribute('font-size', '9.5');
+  t.setAttribute('font-family', 'IBM Plex Sans,sans-serif');
+  t.setAttribute('pointer-events', 'none');
+  t.textContent = txt;
+  svgEl.appendChild(t);
+}
+
+// ─────────────────────────────────────────────────────────────
+// PAVIMENTO SUPERIOR
+// ─────────────────────────────────────────────────────────────
+const CY_S = 490, SR0 = 205, SR1 = 473;
+
+drawSector(CX,CY_S,SR0,SR1, 72,108,[9,10,11,12,13,15,16,17,18],bySetor["SAPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,72,108,[{t:"SETOR A",s:10,b:true,a:.8},{t:"Sup · 121p",s:7.5,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1,112,138,[8,9,9,10,11,12,13,14,14],bySetor["SBPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,112,138,[{t:"SETOR B",s:9.5,b:true,a:.8},{t:"Sup · 100p",s:7,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1, 42,68,[8,9,9,10,11,12,13,14,15],bySetor["SCPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,42,68,[{t:"SETOR C",s:9.5,b:true,a:.8},{t:"Sup · 101p",s:7,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1,142,170,[8,11,13,15,17,19,19,18,17],bySetor["SDPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,142,170,[{t:"SETOR D",s:9,b:true,a:.8},{t:"Sup · 137p",s:7,a:.65}]);
+
+drawSector(CX,CY_S,SR0,SR1,10,38,[9,11,13,15,17,19,19,18,18],bySetor["SEPS"],[]);
+arcLabel(CX,CY_S,(SR0+SR1)/2,10,38,[{t:"SETOR E",s:9,b:true,a:.8},{t:"Sup · 139p",s:7,a:.65}]);
+
+floorLabel(420,"── PAVIMENTO SUPERIOR — 598 poltronas ──");
+
+// ─────────────────────────────────────────────────────────────
+// PAVIMENTO TÉRREO
+// A e D: DUAS PRIMEIRAS FILEIRAS PARA AUTORIDADES.
+// ─────────────────────────────────────────────────────────────
+const CY_T = 1010, TR0 = 150, TR_AB = 271, TR_GAP = 289, TR1 = 430, TR2 = 485;
+const AUTORIDADES_A = [0,1]; // 14 + 15 = 29
+const AUTORIDADES_D = [0,1]; // 8 + 10 = 18
+
+drawSector(CX,CY_T,TR0,TR_AB,60,120,[14,15,16,17,18,19,21,22,23,24,25],bySetor["SAPT"],AUTORIDADES_A);
+arcLabel(CX,CY_T,(TR0+TR_AB)/2,60,120,[{t:"SETOR A",s:10,b:true,a:.8},{t:"Térreo · 214p",s:7.5,a:.65}]);
+
+drawSector(CX,CY_T,TR_GAP,TR2,60,120,[25,28,29,31,32,33,34,35,36,33,12],bySetor["SBPT"],[]);
+arcLabel(CX,CY_T,(TR_GAP+TR2)/2,60,120,[{t:"SETOR B",s:10,b:true,a:.8},{t:"Térreo · 328p",s:7.5,a:.65}]);
+
+drawSector(CX,CY_T,TR0,TR_AB,124,170,[8,10,11,12,14,16,18,19,20,20,21],bySetor["SCPT"],[]);
+arcLabel(CX,CY_T,(TR0+TR_AB)/2,124,170,[{t:"SETOR C",s:9.5,b:true,a:.8},{t:"Térreo · 169p",s:7,a:.65}]);
+
+drawSector(CX,CY_T,TR0,TR_AB,10,56,[8,10,11,12,14,16,18,19,20,20,21],bySetor["SDPT"],AUTORIDADES_D);
+arcLabel(CX,CY_T,(TR0+TR_AB)/2,10,56,[{t:"SETOR D",s:9.5,b:true,a:.8},{t:"Térreo · 169p",s:7,a:.65}]);
+
+drawSector(CX,CY_T,TR_GAP,TR1,124,170,[20,20,19,16,14,11,9,5],bySetor["SEPT"],[]);
+arcLabel(CX,CY_T,(TR_GAP+TR1)/2,124,170,[{t:"SETOR E",s:9,b:true,a:.8},{t:"Térreo · 114p",s:6.5,a:.65}]);
+
+drawSector(CX,CY_T,TR_GAP,TR1,10,56,[20,20,19,16,14,11,8,4],bySetor["SFPT"],[]);
+arcLabel(CX,CY_T,(TR_GAP+TR1)/2,10,56,[{t:"SETOR F",s:9,b:true,a:.8},{t:"Térreo · 112p",s:6.5,a:.65}]);
+
+floorLabel(930,"── PAVIMENTO TÉRREO — 1.106 poltronas ──");
+
+document.getElementById('stat-res').textContent = totalReserved.toLocaleString('pt-BR');
+
+// ─────────────────────────────────────────────────────────────
+// INTERAÇÃO
+// ─────────────────────────────────────────────────────────────
+const tip = document.getElementById('tip');
+let activeId = null;
+let activeOsc = null;
+
+svgEl.addEventListener('click', e => {
+  const el = e.target.closest('.seat');
+  if (!el) {
+    clearHL();
+    return;
+  }
+  toggleHL(+el.dataset.id);
+});
+
+svgEl.addEventListener('mouseover', e => {
+  const el = e.target.closest('rect');
+  if (!el) return;
+
+  let content = "";
+
+  if (el.classList.contains('seat')) {
+    const s = SCHOOLS.find(x => x.id === +el.dataset.id);
+    if (!s) return;
+
+    content = `
+      <b>
+        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;
+        background:${splitCss(s)};margin-right:5px;vertical-align:middle"></span>
+        ${s.name}
+      </b>
+      <span style="color:var(--muted);font-size:11px;display:block">${s.osc}</span>
+      <span style="color:var(--muted);font-size:11px;display:block">${SETOR_CURTO[s.setor]}</span>
+      <span style="color:#8899bb;font-size:11px">${s.p} pessoas</span>`;
+  } else if (el.classList.contains('seat-reserved')) {
+    content = `
+      <b>Autoridades</b>
+      <span style="color:var(--muted);font-size:11px">Fileira reservada</span>`;
+  } else if (el.classList.contains('seat-empty')) {
+    content = `
+      <b>Cadeira Disponível</b>
+      <span style="color:var(--muted);font-size:11px">Espaço livre</span>`;
+  }
+
+  if (content) {
+    tip.innerHTML = content;
+    tip.style.cssText = 'display:block;position:fixed;bottom:auto;transform:none';
+  }
+});
+
+svgEl.addEventListener('mousemove', e => {
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top = (e.clientY - 8) + 'px';
+});
+
+svgEl.addEventListener('mouseleave', () => {
+  if (!activeId && !activeOsc) tip.style.display = 'none';
+});
+
+function toggleHL(id) {
+  if (activeId === id && !activeOsc) {
+    clearHL();
+    return;
+  }
+
+  activeId = id;
+  activeOsc = null;
+
+  document.querySelectorAll('.seat').forEach(el =>
+    el.classList.toggle('dim', +el.dataset.id !== id)
+  );
+
+  document.querySelectorAll('.li').forEach(el =>
+    el.classList.toggle('dim', +el.dataset.id !== id)
+  );
+
+  document.querySelectorAll('.osc-legend-item').forEach(el => {
+    el.classList.remove('active', 'dim');
+  });
+
+  const s = SCHOOLS.find(x => x.id === id);
+  if (s) {
+    tip.innerHTML = `
+      <b>
+        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;
+        background:${splitCss(s)};margin-right:5px;vertical-align:middle"></span>
+        ${s.name}
+      </b>
+      <span style="color:var(--muted);font-size:11px;display:block">${s.osc}</span>
+      <span style="color:var(--muted);font-size:11px;display:block">${SETOR_CURTO[s.setor]}</span>
+      <span style="color:#8899bb;font-size:11px">${s.p} pessoas</span>`;
+
+    tip.style.cssText =
+      'display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:12px;top:auto';
+  }
+}
+
+/**
+ * Destaca todas as cadeiras pertencentes à mesma OSC.
+ * Um segundo clique na mesma OSC desfaz o destaque.
+ */
+function toggleOscHL(osc) {
+  if (activeOsc === osc) {
+    clearHL();
+    return;
+  }
+
+  activeId = null;
+  activeOsc = osc;
+
+  document.querySelectorAll('.seat').forEach(el =>
+    el.classList.toggle('dim', el.dataset.osc !== osc)
+  );
+
+  // Mantém visíveis, na legenda de escolas, somente as unidades da OSC escolhida.
+  document.querySelectorAll('.li').forEach(el =>
+    el.classList.toggle('dim', el.dataset.osc !== osc)
+  );
+
+  // Realça a própria OSC selecionada na legenda.
+  document.querySelectorAll('.osc-legend-item').forEach(el => {
+    const selected = el.dataset.osc === osc;
+    el.classList.toggle('active', selected);
+    el.classList.toggle('dim', !selected);
+  });
+
+  const escolasOsc = SCHOOLS.filter(s => s.osc === osc);
+  const totalPessoas = escolasOsc.reduce((sum, s) => sum + s.p, 0);
+  const setores = [...new Set(escolasOsc.map(s => SETOR_CURTO[s.setor]))];
+
+  tip.innerHTML = `
+    <b>
+      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;
+      background:${OSC_COLORS[osc] || '#FFFFFF'};margin-right:5px;vertical-align:middle"></span>
+      ${osc}
+    </b>
+    <span style="color:var(--muted);font-size:11px;display:block">
+      ${escolasOsc.length} escola(s) / grupo(s)
+    </span>
+    <span style="color:var(--muted);font-size:11px;display:block">
+      ${setores.join(' · ')}
+    </span>
+    <span style="color:#8899bb;font-size:11px">${totalPessoas} pessoas</span>`;
+
+  tip.style.cssText =
+    'display:block;position:fixed;left:50%;transform:translateX(-50%);bottom:12px;top:auto';
+}
+
+function clearHL() {
+  activeId = null;
+  activeOsc = null;
+
+  document.querySelectorAll('.seat,.li').forEach(el =>
+    el.classList.remove('dim')
+  );
+
+  document.querySelectorAll('.osc-legend-item').forEach(el =>
+    el.classList.remove('active', 'dim')
+  );
+
+  tip.style.display = 'none';
+  tip.style.transform = '';
+}
+
+// ─────────────────────────────────────────────────────────────
+// LEGENDA DAS OSCs
+// ─────────────────────────────────────────────────────────────
+const oscLegend = document.getElementById('oscLegend');
+Object.entries(OSC_COLORS).forEach(([osc, color]) => {
+  const item = document.createElement('span');
+  item.className = 'osc-legend-item';
+  item.dataset.osc = osc;
+  item.title = `Clique para destacar todas as cadeiras da OSC ${osc}`;
+  item.innerHTML = `<span class="osc-legend-dot" style="background:${color}"></span>${osc}`;
+  item.addEventListener('click', () => toggleOscHL(osc));
+  oscLegend.appendChild(item);
+});
+
+// Quando um setor possui mais de uma OSC, o cabeçalho mostra faixas
+// com as cores das OSCs presentes naquele setor.
+function sectorOscGradient(sectorSchools) {
+  const oscs = [...new Set(sectorSchools.map(s => s.osc))];
+  if (oscs.length === 1) return OSC_COLORS[oscs[0]] || '#5b7cf7';
+
+  const step = 100 / oscs.length;
+  const stops = [];
+  oscs.forEach((osc, index) => {
+    const start = index * step;
+    const end = (index + 1) * step;
+    const color = OSC_COLORS[osc] || '#5b7cf7';
+    stops.push(`${color} ${start}%`, `${color} ${end}%`);
+  });
+  return `linear-gradient(180deg, ${stops.join(', ')})`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// LEGENDA DO MAPA
+// ─────────────────────────────────────────────────────────────
+const legend = document.getElementById('legend');
+legend.innerHTML = '';
+
+SCHOOLS
+  .slice()
+  .sort((a,b) => a.name.localeCompare(b.name, 'pt-BR'))
+  .forEach(s => {
+    const d = document.createElement('div');
+    d.className = 'li';
+    d.dataset.id = s.id;
+    d.dataset.osc = s.osc;
+
+    d.innerHTML = `
+      <div class="li-dot" style="background:${splitCss(s)}"></div>
+      <span class="li-name">${s.name}</span>
+      <span class="li-sec">${SETOR_CURTO[s.setor]}</span>
+      <span class="li-n">${s.p}p</span>`;
+
+    d.title = s.osc;
+    d.addEventListener('click', () => toggleHL(s.id));
+    legend.appendChild(d);
+  });
+
+// ─────────────────────────────────────────────────────────────
+// ABA POR SETOR
+// ─────────────────────────────────────────────────────────────
+const sg = document.getElementById('sg');
+sg.innerHTML = '';
+
+SORDER.forEach((sec, si) => {
+  const sectorSchools = bySetor[sec];
+  if (!sectorSchools.length) return;
+
+  const total = sectorSchools.reduce((a, s) => a + s.p, 0);
+
+  const card = document.createElement('div');
+  card.className = 'sc';
+  card.innerHTML = `
+    <div class="sc-hd">
+      <div class="sc-bar" style="background:${sectorOscGradient(sectorSchools)}"></div>
+      <div>
+        <div class="sc-title">${SETOR_NOMES[sec]}</div>
+        <div class="sc-sub">${sectorSchools.length} grupo(s) · ${total} pessoas</div>
+      </div>
+    </div>`;
+
+  sectorSchools.forEach(s => {
+    const r = document.createElement('div');
+    r.className = 'sr';
+    r.title = s.osc;
+    r.innerHTML = `
+      <div class="d" style="background:${splitCss(s)}"></div>
+      <span class="nm">${s.name}<br>
+        <small style="color:var(--muted)">${s.osc}</small>
+      </span>
+      <span class="np">${s.p}p</span>`;
+
+    r.addEventListener('click', () => {
+      showTab('mapa');
+      setTimeout(() => toggleHL(s.id), 80);
+    });
+
+    card.appendChild(r);
+  });
+
+  sg.appendChild(card);
+});
+
+// ─────────────────────────────────────────────────────────────
+// ABA LISTA / BUSCA
+// ─────────────────────────────────────────────────────────────
+const fl = document.getElementById('fl');
+
+function renderList(q = '') {
+  fl.innerHTML = '';
+  const term = q.trim().toLowerCase();
+
+  const filtered = SCHOOLS
+    .filter(s =>
+      !term ||
+      s.name.toLowerCase().includes(term) ||
+      s.osc.toLowerCase().includes(term) ||
+      SETOR_CURTO[s.setor].toLowerCase().includes(term)
+    )
+    .sort((a,b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+  filtered.forEach(s => {
+    const d = document.createElement('div');
+    d.className = 'fi';
+    d.title = s.osc;
+
+    d.innerHTML = `
+      <div class="d" style="background:${splitCss(s)}"></div>
+      <span class="nm">${s.name}<br>
+        <small style="color:var(--muted)">${s.osc}</small>
+      </span>
+      <span class="sec">${SETOR_CURTO[s.setor]}</span>
+      <span class="np">${s.p}p</span>`;
+
+    d.addEventListener('click', () => {
+      showTab('mapa');
+      setTimeout(() => toggleHL(s.id), 80);
+    });
+
+    fl.appendChild(d);
+  });
+}
+
+renderList();
+
+function filtrar() {
+  renderList(document.getElementById('search').value);
+}
+
+function showTab(id) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+
+  document.getElementById('tab-' + id).classList.add('on');
+
+  const idx = {mapa: 0, setores: 1, lista: 2}[id];
+  const tab = document.querySelectorAll('.tab')[idx];
+  if (tab) tab.classList.add('on');
+}
+</script>
+
+</body>
+</html>
